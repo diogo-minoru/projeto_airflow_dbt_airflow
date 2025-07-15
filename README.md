@@ -1,45 +1,73 @@
-Overview
-========
+# Data Pipeline: Cotação do Bitcoin com PostgreSQL, Python, dbt e Airflow
 
-Welcome to Astronomer! This project was generated after you ran 'astro dev init' using the Astronomer CLI. This readme describes the contents of the project, as well as how to run Apache Airflow on your local machine.
+Este projeto implementa um pipeline de dados completo para ingestão, tratamento e orquestração de dados da cotação diária do Bitcoin. Utiliza as melhores práticas de engenharia de dados, como containerização, ingestão programática com Python, modelagem em camadas com o **esquema Medallion (bronze → silver → gold)** via `dbt`, e automação com **Apache Airflow**.
 
-Project Contents
-================
+---
 
-Your Astro project contains the following files and folders:
+## Visão Geral do Pipeline
 
-- dags: This folder contains the Python files for your Airflow DAGs. By default, this directory includes one example DAG:
-    - `example_astronauts`: This DAG shows a simple ETL pipeline example that queries the list of astronauts currently in space from the Open Notify API and prints a statement for each astronaut. The DAG uses the TaskFlow API to define tasks in Python, and dynamic task mapping to dynamically print a statement for each astronaut. For more on how this DAG works, see our [Getting started tutorial](https://www.astronomer.io/docs/learn/get-started-with-airflow).
-- Dockerfile: This file contains a versioned Astro Runtime Docker image that provides a differentiated Airflow experience. If you want to execute other commands or overrides at runtime, specify them here.
-- include: This folder contains any additional files that you want to include as part of your project. It is empty by default.
-- packages.txt: Install OS-level packages needed for your project by adding them to this file. It is empty by default.
-- requirements.txt: Install Python packages needed for your project by adding them to this file. It is empty by default.
-- plugins: Add custom or community plugins for your project to this file. It is empty by default.
-- airflow_settings.yaml: Use this local-only file to specify Airflow Connections, Variables, and Pools instead of entering them in the Airflow UI as you develop DAGs in this project.
+1. **Banco de Dados PostgreSQL** com Docker Compose  e **Ingestão de dados via API** com Python (`requests` + `pandas`)  
+2. **Modelagem dos dados com dbt** e o esquema Medallion  
+3. **Orquestração completa com Apache Airflow**
 
-Deploy Your Project Locally
-===========================
+---
 
-Start Airflow on your local machine by running 'astro dev start'.
+## Estrutura do Projeto
 
-This command will spin up five Docker containers on your machine, each for a different Airflow component:
+## Etapa 1 - Banco de Dados com Docker Compose + Ingestão dos dados
 
-- Postgres: Airflow's Metadata Database
-- Scheduler: The Airflow component responsible for monitoring and triggering tasks
-- DAG Processor: The Airflow component responsible for parsing DAGs
-- API Server: The Airflow component responsible for serving the Airflow UI and API
-- Triggerer: The Airflow component responsible for triggering deferred tasks
+O banco de dados PostgreSQL é definido no `docker-compose.yml`. Para subir o ambiente:
 
-When all five containers are ready the command will open the browser to the Airflow UI at http://localhost:8080/. You should also be able to access your Postgres Database at 'localhost:5432/postgres' with username 'postgres' and password 'postgres'.
+```bash
+docker-compose up -d
+```
 
-Note: If you already have either of the above ports allocated, you can either [stop your existing Docker containers or change the port](https://www.astronomer.io/docs/astro/cli/troubleshoot-locally#ports-are-not-available-for-my-local-airflow-webserver).
+O script Python realiza:
 
-Deploy Your Project to Astronomer
-=================================
+Requisição para uma API pública de cotação do Bitcoin, salvando os dados em arquivo CSV no diretório dbt_project/seeds/
 
-If you have an Astronomer account, pushing code to a Deployment on Astronomer is simple. For deploying instructions, refer to Astronomer documentation: https://www.astronomer.io/docs/astro/deploy-code/
+### Extração dos campos:
 
-Contact
-=======
+|datetime    | open     | high     | low      | close    |
+|:---:       |:---:     |:---:     |:---:     |:---:     |
+|2025-07-14  |119086.65 |123218    |118905.18 |120610.02 |
+|2025-07-13  |117420    |119488    |117224.79 |119086.64 |
+|2025-07-12  |117527.66 |118200    |116900.05 |117420    |
+|2025-07-11  |116010.01 |118869.98 |115222.22 |117527.66 |
+|2025-07-10  |111234    |	116868 |110500    |116010    |
 
-The Astronomer CLI is maintained with love by the Astronomer team. To report a bug or suggest a change, reach out to our support.
+
+
+## Etapa 2 - Transformação com dbt
+
+Com os dados no diretório seeds, o comando dbt build irá:
+
+1. Carregar os dados do CSV para o banco (seed)
+2. Criar modelos de transformação com o esquema:
+
+    - bronze → dados brutos
+    - silver → dados limpos e validados
+    - gold → métricas agregadas e preparadas para análise
+
+## Etapa 3 - Orquestração com Apache Airflow
+A DAG no Airflow realiza a orquestração automática do pipeline:
+
+- start_pipeline: início da DAG
+- fetch_data: executa o script Python para coletar e salvar os dados
+- dbt_seed: insere os dados no PostgreSQL via dbt seed
+- dbt_build: executa os modelos dbt em sequência (bronze → silver → gold)
+
+### Comandos
+
+```bash
+git submodule add https://github.com/diogo-minoru/projeto_airflow_dbt_data_warehouse
+```
+
+```bash
+git pull --recurse
+```
+
+```bash
+git config submodule.recurse true
+git config pull.recurseSubmodules on-demand
+```
